@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Smol · AgenticWeightInfra</title>
+<meta name="description" content="AgenticWeightInfra: edit SmolLM2 by skipping layers, zeroing heads, or adding noise. SmolLM2-135M runs without shader-f16." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="./src/style.css" />
+</head>
+<body data-page="smol">
+<header>
+  <nav class="tabs"><a href="./">Playground</a><a href="./llama.html">Llama</a><a href="./smol.html" class="on">Smol</a></nav>
+  <h1 aria-label="AgenticWeightInfra">Agentic<em>Weight</em>Infra</h1>
+  <p class="lede">Edit <b>SmolLM2</b> by changing its weights. The default model is SmolLM2-135M, which runs without shader-f16. It has no value bias, so the programs are layer surgery: the default skips the middle band that stays fluent on Qwen. Download once, then press <b>Build &amp; compare</b>. WebGPU edits the weights and WebLLM runs both models in this tab.</p>
+  <span id="gpu" class="chip">checking WebGPU…</span>
+  <span id="build" class="chip"></span>
+  <div id="boot" class="warn" hidden></div>
+</header>
+<main>
+  <div>
+    <section>
+      <h2><b>1</b>Model</h2>
+      <select id="setup"></select>
+      <div class="row"><button id="download">Download weights</button><span id="dlstate" class="muted"></span></div>
+      <div id="f16warn" class="warn" hidden>SmolLM2-360M needs shader-f16. Choose SmolLM2-135M on this tab, which does not, or use a recent Chrome or Edge.</div>
+      <div id="prog" class="progress" hidden><i></i><span></span></div>
+    </section>
+    <section>
+      <h2><b>2</b>Weight program</h2>
+      <select id="preset"></select>
+      <div style="height:8px"></div>
+      <textarea id="program" spellcheck="false" aria-label="Weight program"></textarea>
+      <div id="compile"></div>
+      <div class="row">
+        <button id="run">Build &amp; compare</button>
+        <button id="share" class="ghost">Copy share link</button>
+      </div>
+      <details class="ref" style="margin-top:12px">
+        <summary>Language reference</summary>
+        <p><code>&lt;selector&gt; &lt;op&gt; [args]</code>, one rule per line. Rules apply in order.</p>
+        <p>Selectors: <code>*</code> · <code>embed</code> · <code>layers.13-15</code> · <code>layers.*.mlp</code> · <code>layers.*.attn.o_proj</code> · <code>layers.0-5.*norm</code></p>
+        <p>Ops: <code>skip</code> (zero o_proj + down_proj) · <code>zero-heads 0-3</code> · <code>noise s</code> · <code>scale k</code> · <code>zero</code> · <code>mix a</code> (needs a same-architecture donor; these models have none) · <code>inject word c</code> (needs attention value biases; these models have none)</p>
+      </details>
+    </section>
+    <section>
+      <h2><b>3</b>Prompts</h2>
+      <textarea id="prompts" rows="5" spellcheck="false" aria-label="Prompts"></textarea>
+      <div class="row"><label class="muted">max tokens</label><input id="maxtok" type="number" value="80" min="8" max="512" style="width:90px" /><span class="muted">greedy decoding, identical for both models</span></div>
+    </section>
+    <section>
+      <h2>Agent</h2>
+      <p class="muted">Ask for a layer skip, a head ablation, noise, or an MLP scale. The agent writes the program for this model's depth and checks that Paris survives.</p>
+      <textarea id="goal" rows="3" spellcheck="false" aria-label="Agent goal">Skip the middle layers and still say that Paris is the capital of France.</textarea>
+      <div class="row">
+        <button id="agent">Run agent</button>
+        <label class="muted">steps</label>
+        <input id="steps" type="number" value="3" min="1" max="6" style="width:70px" />
+      </div>
+      <div id="trace"></div>
+    </section>
+  </div>
+  <div>
+    <section>
+      <h2>Change control</h2>
+      <p class="muted">Policy 2026.1 gates every build and every agent probe. A routine edit needs an operator and a reason. A review-level edit also needs approval. A denied edit does not run. The decision stays in the audit log on this machine.</p>
+      <div class="row"><input id="operator" placeholder="operator" autocomplete="nickname" /><input id="ticket" placeholder="CHG-1042" autocomplete="off" /></div>
+      <textarea id="reason" rows="2" placeholder="Why this edit is being applied"></textarea>
+      <label class="check"><input id="approve" type="checkbox" /> Approve this review-level edit</label>
+      <div id="policy"></div>
+      <div class="row"><input id="progname" placeholder="program name" autocomplete="off" /><button id="saveprog" class="ghost" type="button">Save program</button></div>
+      <select id="registry"></select>
+    </section>
+    <section>
+      <h2>Audit</h2>
+      <div class="row"><button id="exportaudit" class="ghost" type="button">Export JSON</button><button id="clearaudit" class="ghost" type="button">Clear</button></div>
+      <div id="audit"></div>
+    </section>
+    <section>
+      <h2>Weight security</h2>
+      <p class="muted">Once the weights are cached, and again after each edit, this check reads the tensors. A broken manifest, a non-finite value, or bytes that do not match the program stop the run.</p>
+      <div id="security"></div>
+    </section>
+    <section>
+      <h2>Weight map</h2>
+      <div class="row" style="margin:0 0 10px"><button id="analyze" class="ghost">Map weight space</button><span class="muted">Outlined cells are the tensors your program touches.</span></div>
+      <div id="map"></div>
+    </section>
+    <section>
+      <h2>Original vs. edited weights</h2>
+      <div id="results"><div class="muted" style="grid-column:1/-1">Run a program to see both models answer the same prompts.</div></div>
+    </section>
+    <section>
+      <h2>Log</h2>
+      <div id="log"></div>
+    </section>
+  </div>
+</main>
+<script src="./src/boot-check.js"></script>
+<script type="module" src="./src/app.js"></script>
+</body>
+</html>

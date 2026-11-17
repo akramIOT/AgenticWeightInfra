@@ -1,0 +1,12 @@
+{
+  "name": "agentic-weight-infra",
+  "version": "1.0.0",
+  "description": "AgenticWeightInfra: a browser runtime that edits LLM weights with a small language, WebGPU kernels, and an agent.",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node --test",
+    "start": "node tools/serve.mjs"
+  }
+}
