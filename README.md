@@ -10,6 +10,7 @@ It draws its inspiration from weight-space programming (WSP), the MIT CSAIL proj
 
 - [Weight-space programming](https://en.wikipedia.org/wiki/Weight-space_programming) (Wikipedia)
 - [Sparks of Weight-Space Programming](https://rikiyat.github.io/blog/weight-space-programming/) (Rikiya Takehi, Jayden Teoh, Alex Zhang, and Omar Khattab, MIT CSAIL)
+- [https://huggingface.co/papers/2611.09382] (Paper)   
 
 An agent sits on that runtime. It observes which edits the loaded model can actually express, writes a program, probes the original and the edited model on the same prompts, and revises only the coefficient. The search bounds are the ones the reference runs measured: concept injection collapses when it is too strong, a steer that is pushed too far loses fluency and facts, and a straight mix of Qwen Instruct and Qwen Coder falls off a cliff.
 
