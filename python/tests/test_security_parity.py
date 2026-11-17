@@ -1,5 +1,6 @@
 """The same security, control, and catalog cases the JavaScript suite checks."""
 
+import json
 import unittest
 from types import SimpleNamespace
 from urllib.parse import urljoin
@@ -7,7 +8,7 @@ from urllib.parse import urljoin
 import numpy as np
 
 from wsp.catalog import presets_for, setups_for
-from wsp.control import AuditLog, ProgramRegistry, evaluate_program, gate_edit
+from wsp.control import GENESIS, AuditLog, ProgramRegistry, chain_digest, evaluate_program, gate_edit
 from wsp.language import compile_program
 from wsp.model import Tensor
 from wsp.security import LIMITS, attest_edited, attest_loaded, inspect_structure, scan_encoded
@@ -385,8 +386,39 @@ class SecurityParityTest(unittest.TestCase):
         review = judge("* mix 0.5", donor)
         change = {"operator": "ada", "reason": "show the merge cliff", "ticket": "CHG-1042"}
         self.assertFalse(gate_edit(review, change, approved=False)["ok"])
-        self.assertTrue(gate_edit(review, change, approved=True)["ok"])
+        self.assertRegex(gate_edit(review, change, approved=True)["blockReason"], "approver")
+        self.assertRegex(gate_edit(review, {**change, "approver": "Ada"}, approved=True)["blockReason"], "different person")
+        self.assertTrue(gate_edit(review, {**change, "approver": "bao"}, approved=True)["ok"])
+        self.assertRegex(
+            gate_edit(review, {"operator": "ada", "approver": "bao", "reason": "show the merge cliff"}, approved=True)["blockReason"],
+            "ticket",
+        )
         self.assertRegex(gate_edit(judge("* zero"), change)["blockReason"], "does not allow")
+
+        held = evaluate_program(
+            "layers.14-19 inject wedding 16",
+            compile_program("layers.14-19 inject wedding 16", info),
+            info,
+            environment="controlled",
+        )
+        self.assertEqual(held["decision"], "review")
+        self.assertEqual(held["environment"], "controlled")
+        self.assertIn("controlled", codes(held))
+        noise = "layers.0.mlp.down_proj noise 0.05"
+        self.assertEqual(judge(noise)["decision"], "allow")
+        self.assertEqual(
+            evaluate_program(noise, compile_program(noise, info), info, environment="controlled")["decision"],
+            "review",
+        )
+        allow = judge("layers.10-12 skip")
+        controlled = {**allow, "environment": "controlled"}
+        promoted = {"operator": "ada", "reason": "layer skip check", "programHash": "abc", "modelId": "qwen"}
+        self.assertRegex(gate_edit(controlled, promoted)["blockReason"], "second person")
+        self.assertTrue(gate_edit(
+            controlled,
+            promoted,
+            release={"status": "approved", "programHash": "abc", "modelId": "qwen"},
+        )["ok"])
 
         class Mem:
             def __init__(self):
@@ -410,6 +442,37 @@ class SecurityParityTest(unittest.TestCase):
         registry.save({"name": "skip-middle", "modelId": "qwen", "program": "layers.10-12 skip\n", "programHash": "abd", "decision": "allow"})
         self.assertEqual(len(registry.list()), 1)
         self.assertEqual(registry.get("skip-middle")["programHash"], "abd")
+        self.assertEqual(registry.get("skip-middle")["status"], "draft")
+        registry.save({
+            "name": "skip-middle", "modelId": "qwen", "program": "layers.10-12 skip",
+            "programHash": "abc", "decision": "allow", "author": "ada",
+        })
+        with self.assertRaisesRegex(ValueError, "different person"):
+            registry.approve("skip-middle", "ada")
+        self.assertEqual(registry.approve("skip-middle", "bao")["status"], "approved")
+        self.assertEqual(registry.retire("skip-middle")["status"], "retired")
+        with self.assertRaisesRegex(ValueError, "saved again"):
+            registry.approve("skip-middle", "bao")
+        chain = AuditLog(storage, key="awi.chain")
+        chain.record({"action": "build", "decision": "allow", "blocked": False})
+        chain.record({"action": "edit", "decision": "review", "blocked": False})
+        self.assertTrue(chain.verify()["ok"])
+        self.assertEqual(chain.list()[1]["prev"], chain.list()[0]["digest"])
+        first = dict(chain.list()[0])
+        first["digest"] = "ignored"
+        self.assertEqual(chain_digest(GENESIS, first), chain.list()[0]["digest"])
+        tampered = chain.list()
+        tampered[0]["decision"] = "deny"
+        storage.setItem("awi.chain", json.dumps(tampered))
+        self.assertFalse(chain.verify()["ok"])
+        self.assertEqual(chain.verify()["brokenAt"], 0)
+        short = AuditLog(storage, key="awi.short", limit=2)
+        short.record({"action": "a", "decision": "allow", "blocked": False})
+        short.record({"action": "b", "decision": "allow", "blocked": False})
+        short.record({"action": "c", "decision": "allow", "blocked": False})
+        self.assertEqual([row["action"] for row in short.list()], ["b", "c"])
+        self.assertEqual(short.list()[0]["prev"], GENESIS)
+        self.assertTrue(short.verify()["ok"])
 
         class Full:
             def getItem(self, _key):

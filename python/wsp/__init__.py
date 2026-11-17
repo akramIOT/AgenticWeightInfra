@@ -14,7 +14,9 @@ from .language import compile_program, parse_program, rule_body, selector_to_mat
 from .model import make_tiny_qwen
 from .policy import layer_band, propose, revise
 from .rubric import score_rows
+from .report import edit_report
 from .runtime import build_patched, injection_alignment, load_report, run_program
+from .workspace import ControlWorkspace, program_hash
 from .session import run_agent_session
 from .tools import dispatch_tool
 
@@ -22,8 +24,10 @@ __all__ = [
     "AuditLog",
     "apply_array",
     "build_patched",
+    "ControlWorkspace",
     "compile_program",
     "dispatch_tool",
+    "edit_report",
     "evaluate_program",
     "gate_edit",
     "hash_str",
@@ -33,6 +37,7 @@ __all__ = [
     "make_tiny_qwen",
     "parse_program",
     "presets_for",
+    "program_hash",
     "propose",
     "revise",
     "rule_body",

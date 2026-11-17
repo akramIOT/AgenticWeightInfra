@@ -126,11 +126,23 @@ def build_patched(info, program, donor=None, packs=None, log=None):
     return Build(compiled, patched, inject_vecs, steer_vecs, logs, rec, report)
 
 
-def run_program(info, program, *, donor=None, packs=None, operator="operator", reason="reference run", approved=False, ticket="", audit=None):
+def run_program(info, program, *, donor=None, packs=None, operator="operator", reason="reference run", approved=False, ticket="", approver="", environment="lab", release=None, audit=None):
     """Gate the edit, apply it, attest it, and append the decision to the audit log."""
     compiled = compile_program(program, info, donor)
-    policy = evaluate_program(program, compiled, info)
-    gate = gate_edit(policy, {"operator": operator, "reason": reason, "ticket": ticket}, approved=approved)
+    policy = evaluate_program(program, compiled, info, environment=environment)
+    gate = gate_edit(
+        policy,
+        {
+            "operator": operator,
+            "reason": reason,
+            "ticket": ticket,
+            "approver": approver,
+            "programHash": hash_str((info.rec.get("model_id") or "") + "|" + rule_body(program)),
+            "modelId": info.rec.get("model_id") or "",
+        },
+        approved=approved,
+        release=release,
+    )
     log = audit or AuditLog()
     if not gate["ok"]:
         log.record({

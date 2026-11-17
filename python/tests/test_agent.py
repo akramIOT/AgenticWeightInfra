@@ -249,7 +249,7 @@ class AgentTest(unittest.TestCase):
         self.assertEqual(decision("layers.14-19 inject wedding 30"), "deny")
         blocked = gate_edit(
             evaluate_program("* mix 0.5", compile_program("* mix 0.5", QWEN, QWEN), QWEN),
-            {"operator": "RAILS", "reason": "show the cliff"},
+            {"operator": "RAILS", "reason": "show the cliff", "ticket": "CHG-1042"},
             approved=False,
         )
         self.assertFalse(blocked["ok"])

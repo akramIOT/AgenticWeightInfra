@@ -7,6 +7,7 @@ skip are review.
 """
 
 import json
+import math
 import re
 from datetime import datetime, timezone
 
@@ -17,12 +18,20 @@ POLICY_VERSION = "2026.1"
 _RANK = {"allow": 0, "review": 1, "deny": 2}
 
 
-def evaluate_program(text, compiled, info):
+def evaluate_program(text, compiled, info, environment="lab"):
+    env = environment or "lab"
     findings = []
+    if env not in ("lab", "controlled"):
+        findings.append({
+            "level": "deny",
+            "code": "environment",
+            "message": f'Control environment "{env}" is not lab or controlled.',
+        })
+        return _finish(findings, compiled, env)
     if compiled.errors:
         for message in compiled.errors:
             findings.append({"level": "deny", "code": "compile", "message": message})
-        return _finish(findings, compiled)
+        return _finish(findings, compiled, env)
     rules = parse_program(text)["rules"]
     mc = (info.config or {}).get("model_config") or {} if info is not None else {}
     n = mc.get("num_hidden_layers", 1)
@@ -37,10 +46,16 @@ def evaluate_program(text, compiled, info):
             "code": "breadth",
             "message": f"This edit touches {fraction * 100:.1f}% of parameters, above the 50% routine ceiling.",
         })
-    return _finish(findings, compiled)
+    if env == "controlled" and any(rule["op"] in ("inject", "steer", "noise") for rule in rules):
+        findings.append({
+            "level": "review",
+            "code": "controlled",
+            "message": "A controlled environment requires approval before injection, steering, or noise is applied.",
+        })
+    return _finish(findings, compiled, env)
 
 
-def gate_edit(policy, change=None, approved=False):
+def gate_edit(policy, change=None, approved=False, release=None):
     change = change or {}
     if not policy:
         return {"ok": False, "blockReason": "Control policy has not been evaluated."}
@@ -48,6 +63,7 @@ def gate_edit(policy, change=None, approved=False):
         why = " ".join(f["message"] for f in policy["findings"] if f["level"] == "deny")
         return {"ok": False, "blockReason": why or "The control policy denied this edit."}
     operator = str(change.get("operator") or "").strip()
+    approver = str(change.get("approver") or "").strip()
     reason = str(change.get("reason") or "").strip()
     ticket = str(change.get("ticket") or "").strip()
     if len(operator) < 2:
@@ -56,11 +72,29 @@ def gate_edit(policy, change=None, approved=False):
         return {"ok": False, "blockReason": "Record a change reason of at least 8 characters."}
     if ticket and not re.fullmatch(r"[A-Za-z][A-Za-z0-9]*-\d+", ticket):
         return {"ok": False, "blockReason": "Ticket must look like CHG-1042."}
-    if policy["decision"] == "review" and not approved:
-        return {
-            "ok": False,
-            "blockReason": "This edit is above the routine threshold. Approve it explicitly. The approval is written to the audit log.",
-        }
+    if policy["decision"] == "review":
+        if not ticket:
+            return {"ok": False, "blockReason": "A review-level edit needs a ticket like CHG-1042."}
+        if not approved:
+            return {
+                "ok": False,
+                "blockReason": "This edit is above the routine threshold. Approve it explicitly. The approval is written to the audit log.",
+            }
+        if len(approver) < 2:
+            return {"ok": False, "blockReason": "A review-level edit needs an approver who is not the operator."}
+        if approver.lower() == operator.lower():
+            return {"ok": False, "blockReason": "The approver must be a different person from the operator."}
+    if (policy.get("environment") or "lab") == "controlled":
+        digest = str(change.get("programHash") or "")
+        model_id = str(change.get("modelId") or "")
+        promoted = (
+            release
+            and release.get("status") == "approved"
+            and release.get("programHash") == digest
+            and (not model_id or not release.get("modelId") or release.get("modelId") == model_id)
+        )
+        if not promoted:
+            return {"ok": False, "blockReason": "A controlled environment runs only a program a second person has approved."}
     return {"ok": True}
 
 
@@ -191,12 +225,42 @@ def _fraction(compiled):
     return compiled.stats["touched"] / total
 
 
-def _finish(findings, compiled):
+def _finish(findings, compiled, environment):
     decision = "allow"
     for finding in findings:
         if _RANK[finding["level"]] > _RANK[decision]:
             decision = finding["level"]
-    return {"version": POLICY_VERSION, "decision": decision, "findings": findings, "fraction": _fraction(compiled)}
+    return {
+        "version": POLICY_VERSION,
+        "environment": environment,
+        "decision": decision,
+        "findings": findings,
+        "fraction": _fraction(compiled),
+    }
+
+
+GENESIS = "00000000"
+
+
+def canonical(value):
+    """Stable JSON with sorted keys. Integer-valued floats match JavaScript."""
+    if value is None or isinstance(value, (str, bool, int)):
+        return json.dumps(value)
+    if isinstance(value, float):
+        if math.isfinite(value) and value == int(value):
+            return json.dumps(int(value))
+        return json.dumps(value)
+    if isinstance(value, list):
+        return "[" + ",".join(canonical(item) for item in value) + "]"
+    if isinstance(value, dict):
+        keys = sorted(value)
+        return "{" + ",".join(json.dumps(key) + ":" + canonical(value[key]) for key in keys) + "}"
+    return json.dumps(value)
+
+
+def chain_digest(prev, entry):
+    body = {key: value for key, value in entry.items() if key != "digest"}
+    return hash_str(f"{prev}\n{canonical(body)}")
 
 
 def math_isfinite(value):
@@ -242,18 +306,47 @@ class AuditLog:
 
     def record(self, entry):
         rows = self.list()
+        prev = rows[-1].get("digest", "") if rows else GENESIS
         row = {
             "id": f"{int(datetime.now(timezone.utc).timestamp() * 1000):x}-{len(rows)}",
             "at": datetime.now(timezone.utc).isoformat(),
             **entry,
+            "prev": prev,
         }
+        row["digest"] = chain_digest(prev, row)
         rows.append(row)
-        _write_storage(self.storage, self.key, json.dumps(rows[-self.limit :]))
-        return row
+        kept = rows[-self.limit :]
+        if len(kept) < len(rows):
+            # Dropping the head would leave the next row pointing at a missing digest.
+            prev_digest = GENESIS
+            for item in kept:
+                item["prev"] = prev_digest
+                item["digest"] = chain_digest(prev_digest, item)
+                prev_digest = item["digest"]
+        _write_storage(self.storage, self.key, json.dumps(kept))
+        return kept[-1]
+
+    def verify(self):
+        rows = self.list()
+        prev = GENESIS
+        for index, row in enumerate(rows):
+            expect = chain_digest(prev, row)
+            if row.get("prev") != prev or row.get("digest") != expect:
+                return {"ok": False, "brokenAt": index, "head": None}
+            prev = row["digest"]
+        return {"ok": True, "brokenAt": None, "head": prev}
 
     def clear(self, meta=None):
+        rows = self.list()
+        severed = rows[-1].get("digest", "") if rows else GENESIS
         _write_storage(self.storage, self.key, "[]")
-        return self.record({"action": "clear", "decision": "allow", "blocked": False, **(meta or {})})
+        return self.record({
+            "action": "clear",
+            "decision": "allow",
+            "blocked": False,
+            "severed": severed,
+            **(meta or {}),
+        })
 
     def export(self):
         return json.dumps(self.list())
@@ -283,8 +376,42 @@ class ProgramRegistry:
             "program": entry.get("program"),
             "programHash": entry.get("programHash") or hash_str(entry.get("program") or ""),
             "decision": entry.get("decision"),
+            "status": "draft",
+            "author": str(entry.get("author") or "").strip(),
         }
         rows.append(row)
+        _write_storage(self.storage, self.key, json.dumps(rows))
+        return row
+
+    def approve(self, name, approver):
+        who = str(approver or "").strip()
+        if len(who) < 2:
+            raise ValueError("Record the approver before promoting a program.")
+        rows = self.list()
+        row = next((item for item in rows if item.get("name") == name), None)
+        if row is None:
+            raise ValueError("Save the program before approving it.")
+        if row.get("status") == "retired":
+            raise ValueError("A retired program must be saved again before it can be approved.")
+        author = str(row.get("author") or "").strip()
+        if len(author) < 2:
+            raise ValueError("Record the operator as the author before a second person approves the program.")
+        if author.lower() == who.lower():
+            raise ValueError("The approver must be a different person from the author.")
+        row["status"] = "approved"
+        row["approvedBy"] = who
+        row["approvedAt"] = datetime.now(timezone.utc).isoformat()
+        _write_storage(self.storage, self.key, json.dumps(rows))
+        return row
+
+    def retire(self, name):
+        rows = self.list()
+        row = next((item for item in rows if item.get("name") == name), None)
+        if row is None:
+            raise ValueError("Save the program before retiring it.")
+        row["status"] = "retired"
+        row.pop("approvedBy", None)
+        row.pop("approvedAt", None)
         _write_storage(self.storage, self.key, json.dumps(rows))
         return row
 
