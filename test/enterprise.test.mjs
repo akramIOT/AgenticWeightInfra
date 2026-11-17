@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { compile } from "../src/infra/language.js";
 import { evaluateProgram, gateEdit } from "../src/enterprise/policy.js";
-import { createAuditLog, createRegistry } from "../src/enterprise/store.js";
+import { createAuditLog, createRegistry, chainDigest, GENESIS } from "../src/enterprise/store.js";
 
 function model() {
   const tensors = new Map();
@@ -69,8 +69,32 @@ test("the gate requires an operator, a reason, and approval when the policy says
   const review = judge("* mix 0.5", donor);
   const change = { operator: "ada", reason: "show the merge cliff", ticket: "CHG-1042" };
   assert.equal(gateEdit({ policy: review, change, approved: false }).ok, false);
-  assert.equal(gateEdit({ policy: review, change, approved: true }).ok, true);
+  assert.match(gateEdit({ policy: review, change, approved: true }).blockReason, /approver/);
+  assert.match(gateEdit({ policy: review, change: { ...change, approver: "Ada" }, approved: true }).blockReason, /different person/);
+  assert.equal(gateEdit({ policy: review, change: { ...change, approver: "bao" }, approved: true }).ok, true);
+  assert.match(gateEdit({ policy: review, change: { operator: "ada", approver: "bao", reason: "show the merge cliff" }, approved: true }).blockReason, /ticket/);
   assert.match(gateEdit({ policy: judge("* zero"), change }).blockReason, /does not allow/);
+});
+
+test("a controlled environment holds concept edits and runs only an approved program", () => {
+  const held = evaluateProgram("layers.14-19 inject wedding 16", compile("layers.14-19 inject wedding 16", info), info, "controlled");
+  assert.equal(held.decision, "review");
+  assert.equal(held.environment, "controlled");
+  assert.ok(codes(held).includes("controlled"));
+  const steer = evaluateProgram("layers.6-11.mlp.down_proj steer newyear 1.2", compile("layers.6-11.mlp.down_proj steer newyear 1.2", info), info, "controlled");
+  assert.equal(steer.decision, "review");
+  const noise = "layers.0.mlp.down_proj noise 0.05";
+  assert.equal(judge(noise).decision, "allow");
+  assert.equal(evaluateProgram(noise, compile(noise, info), info, "controlled").decision, "review");
+  const allow = judge("layers.10-12 skip");
+  const change = { operator: "ada", reason: "layer skip check", programHash: "abc", modelId: "qwen" };
+  const controlled = { ...allow, environment: "controlled" };
+  assert.match(gateEdit({ policy: controlled, change }).blockReason, /second person/);
+  assert.equal(gateEdit({
+    policy: controlled,
+    change,
+    release: { status: "approved", programHash: "abc", modelId: "qwen" },
+  }).ok, true);
 });
 
 test("the audit log keeps a clear event and the registry replaces a program by name", () => {
@@ -87,6 +111,30 @@ test("the audit log keeps a clear event and the registry replaces a program by n
   registry.save({ name: "skip-middle", modelId: "qwen", program: "layers.10-12 skip\n", programHash: "abd", decision: "allow" });
   assert.equal(registry.list().length, 1);
   assert.equal(registry.get("skip-middle").programHash, "abd");
+  assert.equal(registry.get("skip-middle").status, "draft");
+  registry.save({ name: "skip-middle", modelId: "qwen", program: "layers.10-12 skip", programHash: "abc", decision: "allow", author: "ada" });
+  assert.throws(() => registry.approve("skip-middle", "ada"), /different person/);
+  assert.equal(registry.approve("skip-middle", "bao").status, "approved");
+  assert.equal(registry.retire("skip-middle").status, "retired");
+  assert.throws(() => registry.approve("skip-middle", "bao"), /saved again/);
+  const chain = createAuditLog(storage, { key: "awi.chain" });
+  chain.record({ action: "build", decision: "allow", blocked: false });
+  chain.record({ action: "edit", decision: "review", blocked: false });
+  assert.equal(chain.verify().ok, true);
+  assert.equal(chain.list()[1].prev, chain.list()[0].digest);
+  assert.equal(chainDigest(GENESIS, { ...chain.list()[0], digest: "ignored" }), chain.list()[0].digest);
+  const tampered = chain.list();
+  tampered[0].decision = "deny";
+  storage.setItem("awi.chain", JSON.stringify(tampered));
+  assert.equal(chain.verify().ok, false);
+  assert.equal(chain.verify().brokenAt, 0);
+  const short = createAuditLog(storage, { key: "awi.short", limit: 2 });
+  short.record({ action: "a", decision: "allow", blocked: false });
+  short.record({ action: "b", decision: "allow", blocked: false });
+  short.record({ action: "c", decision: "allow", blocked: false });
+  assert.deepEqual(short.list().map((row) => row.action), ["b", "c"]);
+  assert.equal(short.list()[0].prev, GENESIS);
+  assert.equal(short.verify().ok, true);
 });
 
 test("a full browser store reports a local storage failure", () => {

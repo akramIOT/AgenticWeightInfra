@@ -110,6 +110,17 @@ async function init() {
       renderControl();
     });
   }
+  const environment = $("#environment");
+  if (environment) {
+    try { environment.value = localStorage.getItem("awi.environment") === "controlled" ? "controlled" : "lab"; }
+    catch { environment.value = "lab"; }
+    environment.addEventListener("change", () => {
+      try { localStorage.setItem("awi.environment", environment.value); }
+      catch { log("The control environment could not be saved in this browser.", "err"); }
+      renderControl();
+    });
+  }
+  $("#approver")?.addEventListener("input", renderControl);
   $("#ticket")?.addEventListener("input", renderControl);
   $("#reason")?.addEventListener("input", renderControl);
   $("#approve")?.addEventListener("change", () => {
@@ -117,6 +128,9 @@ async function init() {
     renderControl();
   });
   $("#saveprog")?.addEventListener("click", saveProgram);
+  $("#approvprog")?.addEventListener("click", approveProgram);
+  $("#retireprog")?.addEventListener("click", retireProgram);
+  $("#verifyaudit")?.addEventListener("click", verifyAudit);
   $("#registry")?.addEventListener("change", loadProgram);
   $("#exportaudit")?.addEventListener("click", exportAudit);
   $("#clearaudit")?.addEventListener("click", clearAudit);
@@ -425,20 +439,34 @@ function share() {
   navigator.clipboard?.writeText(url).then(() => log("link to this weight program copied", "ok"), () => log(url));
 }
 
-function readChange() {
+function environmentOf() {
+  return $("#environment")?.value === "controlled" ? "controlled" : "lab";
+}
+
+function readChange(program) {
   return {
     operator: $("#operator")?.value ?? "",
+    approver: $("#approver")?.value ?? "",
     ticket: $("#ticket")?.value ?? "",
     reason: $("#reason")?.value ?? "",
+    programHash: hashStr((S.setup?.base ?? "") + "|" + ruleBody(program ?? "")),
+    modelId: S.setup?.base ?? "",
   };
+}
+
+function approvedRelease(change) {
+  const row = S.registry?.list().find((item) =>
+    item.status === "approved" && item.programHash === change.programHash && item.modelId === change.modelId);
+  return row ? { status: row.status, programHash: row.programHash, modelId: row.modelId } : null;
 }
 
 function controlOf(program) {
   const compiled = compile(program, S.info, S.donorInfo);
-  const policy = evaluateProgram(program, compiled, S.info);
-  const change = readChange();
+  const policy = evaluateProgram(program, compiled, S.info, environmentOf());
+  const change = readChange(program);
   const approved = Boolean($("#approve")?.checked && S.approvalHash === hashStr(ruleBody(program)));
-  return { compiled, policy, change, approved, gate: gateEdit({ policy, change, approved }) };
+  const release = approvedRelease(change);
+  return { compiled, policy, change, approved, release, gate: gateEdit({ policy, change, approved, release }) };
 }
 
 function syncApproval() {
@@ -460,7 +488,7 @@ function renderControl() {
   const ctl = controlOf($("#program").value);
   S.policy = ctl.policy;
   const klass = ctl.policy.decision === "allow" ? "ok" : ctl.policy.decision === "review" ? "review" : "err";
-  box.append(el("div", { class: klass }, `policy ${ctl.policy.version} · ${ctl.policy.decision} · ${(ctl.policy.fraction * 100).toFixed(2)}% of parameters`));
+  box.append(el("div", { class: klass }, `policy ${ctl.policy.version} · ${ctl.policy.environment} · ${ctl.policy.decision} · ${(ctl.policy.fraction * 100).toFixed(2)}% of parameters`));
   for (const f of ctl.policy.findings) box.append(el("div", { class: f.level === "deny" ? "err" : "review" }, f.message));
   if (!ctl.gate.ok && ctl.policy.decision !== "deny") box.append(el("div", { class: "muted" }, ctl.gate.blockReason));
   refreshButtons();
@@ -474,9 +502,11 @@ function recordControl(action, program, ctl, blocked, patchedId, security) {
     rules: ruleBody(program),
     findings: ctl.policy.findings,
     operator: ctl.change.operator.trim(),
+    approver: ctl.change.approver.trim(),
     ticket: ctl.change.ticket.trim(),
     reason: ctl.change.reason.trim(),
     approved: ctl.approved,
+    environment: ctl.policy.environment,
     touched: ctl.compiled.stats?.touched ?? 0,
     total: ctl.compiled.stats?.total ?? 0,
     security: security?.decision ?? null,
@@ -499,7 +529,7 @@ function renderRegistry() {
   const current = sel.value;
   sel.innerHTML = "";
   sel.append(el("option", { value: "" }, "Load a saved program…"));
-  for (const row of S.registry.list()) sel.append(el("option", { value: row.name }, `${row.name} · ${row.decision}`));
+  for (const row of S.registry.list()) sel.append(el("option", { value: row.name }, `${row.name} · ${row.status ?? "draft"} · ${row.decision}`));
   sel.value = [...sel.options].some((o) => o.value === current) ? current : "";
 }
 
@@ -513,10 +543,34 @@ function saveProgram() {
       name, modelId: S.setup.base, program: $("#program").value,
       programHash: hashStr(S.setup.base + "|" + ruleBody($("#program").value)),
       decision: ctl.policy.decision,
+      author: ($("#operator")?.value ?? "").trim(),
     });
     if ($("#progname")) $("#progname").value = "";
     renderRegistry();
+    if ($("#registry")) $("#registry").value = name;
     log(`saved program “${name}”`, "ok");
+  } catch (e) { log(e.message, "err"); }
+}
+
+function selectedProgramName() {
+  return $("#registry")?.value || ($("#progname")?.value ?? "").trim();
+}
+
+function approveProgram() {
+  try {
+    const row = S.registry.approve(selectedProgramName(), $("#approver")?.value ?? "");
+    renderRegistry();
+    renderControl();
+    log(`approved program “${row.name}”`, "ok");
+  } catch (e) { log(e.message, "err"); }
+}
+
+function retireProgram() {
+  try {
+    const row = S.registry.retire(selectedProgramName());
+    renderRegistry();
+    renderControl();
+    log(`retired program “${row.name}”`, "ok");
   } catch (e) { log(e.message, "err"); }
 }
 
@@ -530,8 +584,19 @@ function loadProgram() {
   log(`loaded “${row.name}”`, "ok");
 }
 
+function verifyAudit() {
+  const box = $("#auditcheck");
+  if (!box || !S.audit) return;
+  const report = S.audit.verify();
+  const count = S.audit.list().length;
+  box.textContent = report.ok ? `Chain intact. ${count} record${count === 1 ? "" : "s"}.` : `Chain broken at record ${report.brokenAt}.`;
+  box.className = report.ok ? "ok" : "err";
+}
+
 function exportAudit() {
-  const blob = new Blob([JSON.stringify(S.audit.list(), null, 2)], { type: "application/json" });
+  const report = S.audit.verify();
+  const payload = { version: "2026.1", intact: report.ok, records: S.audit.list() };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = `awi-audit-${new Date().toISOString().slice(0, 10)}.json`;

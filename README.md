@@ -10,7 +10,6 @@ It draws its inspiration from weight-space programming (WSP), the MIT CSAIL proj
 
 - [Weight-space programming](https://en.wikipedia.org/wiki/Weight-space_programming) (Wikipedia)
 - [Sparks of Weight-Space Programming](https://rikiyat.github.io/blog/weight-space-programming/) (Rikiya Takehi, Jayden Teoh, Alex Zhang, and Omar Khattab, MIT CSAIL)
-- [https://huggingface.co/papers/2611.09382] (Paper)   
 
 An agent sits on that runtime. It observes which edits the loaded model can actually express, writes a program, probes the original and the edited model on the same prompts, and revises only the coefficient. The search bounds are the ones the reference runs measured: concept injection collapses when it is too strong, a steer that is pushed too far loses fluency and facts, and a straight mix of Qwen Instruct and Qwen Coder falls off a cliff.
 
@@ -31,7 +30,7 @@ layers.14-19 inject wedding 16
 
 The left column is the edit. **Model** picks the checkpoint. **Weight program** is the language, with a preset menu above the editor. **Prompts** are asked of both models with the same greedy decode. **Agent** writes a program from a goal and revises only the coefficient.
 
-The right column is the record of that edit. **Change control** asks for an operator, a ticket, and a reason, and holds a review-level edit until it is approved. **Audit** is the local log of those decisions. **Weight security** is the load scan and the post-edit check. **Weight map** outlines every tensor the program touches. **Original vs. edited weights** is where the two answers land. **Log** is the run transcript.
+The right column is the record of that edit. **Change control** asks for an operator, a reason, and, on a review, a ticket plus a different approver. Lab runs a routine edit directly. Controlled runs only a program a second person has approved, and it holds injection, steering, and noise for that approval. **Audit** is the local hash-chained log of those decisions. **Weight security** is the load scan and the post-edit check. **Weight map** outlines every tensor the program touches. **Original vs. edited weights** is where the two answers land. **Log** is the run transcript.
 
 ### Playground
 
@@ -146,7 +145,11 @@ Policy `2026.1` runs on every build and every agent probe. The thresholds are th
 | Review | Full-model mix, noise above 12%, injection above 20, steer above 1.4, an early-layer skip, more than half the heads, scale outside 0.5–1.5, or more than half the parameters |
 | Deny | A wipe of `*` or `embed`, noise above 30%, injection above 24, steer above 2, scale outside `(0, 3]`, or a full-model mix outside 0–1 |
 
-A review-level edit runs only after the approval checkbox is checked. That approval, and every blocked attempt, is appended to the local audit log. The log exports as JSON. Named programs can be saved and loaded on the same machine. Nothing in this record leaves the browser.
+Lab is the default environment. A routine edit runs with an operator and a reason. A review-level edit also needs a change ticket and an approver who is not the operator, plus the approval checkbox. The checkbox is cleared when the program text changes.
+
+Controlled is the stricter environment. Injection, steering, and noise are review at any strength below the deny ceiling. A controlled build runs only when the current program matches a registry entry a second person has approved. Saving a program stores a draft in the author's name. Approve promotes that draft. Saving it again, or retiring it, drops the approval.
+
+Each audit row stores the digest of the row before it. Verify chain recomputes those digests. A rewritten row breaks the chain. Export JSON includes the rows and whether the chain is intact. Clear keeps one record that names the digest it cut. Nothing in this record leaves the browser.
 
 ## The language
 

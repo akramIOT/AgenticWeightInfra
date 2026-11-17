@@ -64,17 +64,21 @@
   <div>
     <section>
       <h2>Change control</h2>
-      <p class="muted">Policy 2026.1 gates every build and every agent probe. A routine edit needs an operator and a reason. A review-level edit also needs approval. A denied edit does not run. The decision stays in the audit log on this machine.</p>
-      <div class="row"><input id="operator" placeholder="operator" autocomplete="nickname" /><input id="ticket" placeholder="CHG-1042" autocomplete="off" /></div>
+      <p class="muted">Policy 2026.1 gates every build and every agent probe. Lab allows a routine edit with an operator and a reason. A review-level edit also needs a ticket and a different approver. Controlled runs only an approved program, and it holds injection, steering, and noise for that approval. A denied edit does not run.</p>
+      <div class="row"><select id="environment" aria-label="Control environment"><option value="lab">Lab</option><option value="controlled">Controlled</option></select></div>
+      <div class="row"><input id="operator" placeholder="operator" autocomplete="nickname" /><input id="approver" placeholder="approver" autocomplete="off" /></div>
+      <div class="row"><input id="ticket" placeholder="CHG-1042" autocomplete="off" /></div>
       <textarea id="reason" rows="2" placeholder="Why this edit is being applied"></textarea>
       <label class="check"><input id="approve" type="checkbox" /> Approve this review-level edit</label>
       <div id="policy"></div>
-      <div class="row"><input id="progname" placeholder="program name" autocomplete="off" /><button id="saveprog" class="ghost" type="button">Save program</button></div>
+      <div class="row"><input id="progname" placeholder="program name" autocomplete="off" /><button id="saveprog" class="ghost" type="button">Save draft</button></div>
+      <div class="row"><button id="approvprog" class="ghost" type="button">Approve</button><button id="retireprog" class="ghost" type="button">Retire</button></div>
       <select id="registry"></select>
     </section>
     <section>
       <h2>Audit</h2>
-      <div class="row"><button id="exportaudit" class="ghost" type="button">Export JSON</button><button id="clearaudit" class="ghost" type="button">Clear</button></div>
+      <div class="row"><button id="exportaudit" class="ghost" type="button">Export JSON</button><button id="verifyaudit" class="ghost" type="button">Verify chain</button><button id="clearaudit" class="ghost" type="button">Clear</button></div>
+      <div id="auditcheck"></div>
       <div id="audit"></div>
     </section>
     <section>
