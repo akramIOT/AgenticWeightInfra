@@ -24,7 +24,41 @@ layers.14-19 inject wedding 16
 > **Original:** The capital of France is Paris.
 > **After the weight program:** The capital of France is Paris. It is a city … known for its wedding ceremony and wedding ring …
 
-## Llama tab: layer surgery on Llama-3.2-1B
+## The tabs
+
+`npm start` serves four pages at `http://127.0.0.1:8080`. They share one layout.
+
+The left column is the edit. **Model** picks the checkpoint. **Weight program** is the language, with a preset menu above the editor. **Prompts** are asked of both models with the same greedy decode. **Agent** writes a program from a goal and revises only the coefficient.
+
+The right column is the record of that edit. **Change control** asks for an operator, a ticket, and a reason, and holds a review-level edit until it is approved. **Audit** is the local log of those decisions. **Weight security** is the load scan and the post-edit check. **Weight map** outlines every tensor the program touches. **Original vs. edited weights** is where the two answers land. **Log** is the run transcript.
+
+### Playground
+
+![Playground tab. Qwen2.5-0.5B-Instruct is selected, and the program is layers.14-19 inject wedding 16. The weight map outlines the value biases in layers 14 through 19.](docs/images/ui/playground.png)
+
+The [Playground](./index.html) is the Qwen page. It opens on **Qwen2.5-0.5B-Instruct** with the wedding injection, because that model has a value bias and the injection compiles into it:
+
+```
+layers.14-19 inject wedding 16
+```
+
+The model menu also has the pair, Qwen2.5-0.5B-Instruct plus the donor Qwen2.5-Coder-0.5B-Instruct. `mix` is available only on that pair. The presets cover a second injection word, the 50/50 merge cliff, a 10% step toward Coder, a full swap, grafting the layer norms, skipping layers 10–12, skipping the early layers 4–6, zeroing half the attention heads, 5% weight noise, and scaling the MLP outputs.
+
+### New Year
+
+![New Year tab. Llama-3.2-1B-Instruct is selected, and the program is layers.6-11.mlp.down_proj steer newyear 1.2. The weight map outlines the MLP outputs of layers 6 through 11.](docs/images/ui/new-year.png)
+
+The [New Year tab](./new-year.html) steers **Llama-3.2-1B-Instruct**. The default program is a rank-one edit of six MLP down-projections, loaded from `vectors/newyear.Llama-3.2-1B-Instruct.json`:
+
+```
+layers.6-11.mlp.down_proj steer newyear 1.2
+```
+
+The prompts ask for a festival greeting, New Year's Eve, decorations, and the capital of France. The agent goal is the same steer, with Paris kept. The other presets on this tab are the Llama layer-surgery programs below. Qwen has no New Year pack, so the agent refuses that goal on the Playground. The shipped vector file is the previous direction with the name changed. Rebuild it with `python tools/make_steer_vector.py --name newyear` before reading the answers as a New Year result.
+
+### Llama
+
+![Llama tab. Llama-3.2-1B-Instruct is selected, and the program is layers.7-8 skip. The weight map outlines the attention output and the MLP output of layers 7 and 8.](docs/images/ui/llama.png)
 
 The [Llama tab](./llama.html) edits **Llama-3.2-1B-Instruct**. The default program skips two middle layers. Zeroing `o_proj` and `down_proj` makes those layers add nothing to the residual stream:
 
@@ -36,7 +70,9 @@ Llama-3.2-1B has 16 layers. Layers 7–8 are the same relative band as layers 10
 
 `steer` is still in the language. It is a rank-one edit, `W += c · outer(u, a/|a|²)`, loaded from a vector pack built by [`tools/make_steer_vector.py`](tools/make_steer_vector.py). This model has no attention value bias, so `inject` does not apply here.
 
-## Smol tab: layer surgery on SmolLM2
+### Smol
+
+![Smol tab. SmolLM2-135M-Instruct is selected, and the program is layers.13-15 skip. The weight map outlines the attention output and the MLP output of layers 13 through 15.](docs/images/ui/smol.png)
 
 The [Smol tab](./smol.html) edits **SmolLM2**. The default model is SmolLM2-135M-Instruct, the build that runs without shader-f16. SmolLM2-360M-Instruct is the larger sibling on the same tab. Neither has a value bias or a same-architecture donor, so the programs are layer surgery, not concept injection and not a merge.
 
@@ -165,4 +201,6 @@ Verified in headless Chromium (WebGPU): kernel outputs match NumPy (mix, scale, 
 
 ---
 
-**Copyright © 2026 RAILS.** All rights reserved. AgenticWeightInfra is independent software, provided as is, without warranty of any kind. It is inspired by weight-space programming research and is not affiliated with, endorsed by, or a product of MIT, CSAIL, or the authors of that work. Names, papers, and trademarks cited here belong to their respective owners. Model weights (Qwen, Llama, SmolLM, and others) remain the property of their owners and are subject to those owners' licenses.
+Copyright © 2026 RAILS. All rights reserved.
+
+AgenticWeightInfra is independent software, provided as is, without warranty of any kind. It is inspired by weight-space programming research and is not affiliated with, endorsed by, or a product of MIT, CSAIL, or the authors of that work. Names, papers, and trademarks cited here belong to their respective owners. Model weights (Qwen, Llama, SmolLM, and others) remain the property of their owners and are subject to those owners' licenses.
