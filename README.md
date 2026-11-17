@@ -201,6 +201,4 @@ Verified in headless Chromium (WebGPU): kernel outputs match NumPy (mix, scale, 
 
 ---
 
-Copyright © 2026 RAILS. All rights reserved.
-
 AgenticWeightInfra is independent software, provided as is, without warranty of any kind. It is inspired by weight-space programming research and is not affiliated with, endorsed by, or a product of MIT, CSAIL, or the authors of that work. Names, papers, and trademarks cited here belong to their respective owners. Model weights (Qwen, Llama, SmolLM, and others) remain the property of their owners and are subject to those owners' licenses.
