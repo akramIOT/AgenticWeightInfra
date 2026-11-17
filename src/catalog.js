@@ -22,7 +22,7 @@ export const ALL_SETUPS = [
   { id: "llama1b", label: "Llama-3.2-1B-Instruct (f16, 2.5 GB)", base: "Llama-3.2-1B-Instruct-q0f16-MLC", page: "llama", layout: LLAMA_LAYOUT },
 ];
 
-export const setupsFor = (page) => ALL_SETUPS.filter((s) => (s.page ?? "main") === page);
+export const setupsFor = (page) => ALL_SETUPS.filter((s) => (s.page ?? "main") === (page === "newyear" ? "llama" : page));
 
 const LLAMA_PROMPTS = `Write a haiku about autumn.
 What should I do this evening?
@@ -181,7 +181,22 @@ layers.* noise 0.05`,
   ];
 }
 
+const NEWYEAR_PRESETS = [
+  {
+    name: "New Year steer",
+    text: `# Rank-one edit so these MLP outputs add a New Year direction at every token.
+# Llama-3.2-1B, layers 6-11. Strength 1.2 stays fluent. Above 1.4 the Paris fact drops.
+layers.6-11.mlp.down_proj steer newyear 1.2`,
+    prompts: `Write a festival greeting for my friends.
+What should I do on New Year's Eve?
+How should I decorate for the celebration?
+What is the capital of France?`,
+  },
+  ...LLAMA_PRESETS,
+];
+
 export const presetsFor = (page, setup) => {
+  if (page === "newyear") return NEWYEAR_PRESETS;
   if (page === "llama") return LLAMA_PRESETS;
   if (page === "smol") return smolPresets(setup?.layout ?? SMOL135_LAYOUT);
   return MAIN_PRESETS;

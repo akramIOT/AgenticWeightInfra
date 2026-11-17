@@ -22,5 +22,7 @@ test("Smol presets use the same relative bands as the agent", () => {
   assert.match(b[1].text, /layers\.5-8 skip/);
   assert.match(b[2].text, /zero-heads 0-6/);
   assert.equal(presetsFor("llama").length, 5);
+  assert.match(presetsFor("newyear")[0].text, /steer newyear 1\.2/);
+  assert.equal(setupsFor("newyear")[0].id, "llama1b");
   assert.equal(presetsFor("main")[0].text.includes("inject"), true);
 });

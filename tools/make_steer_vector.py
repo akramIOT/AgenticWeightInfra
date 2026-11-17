@@ -11,26 +11,26 @@ then applies the rank-one weight edit
 so for a typical token the MLP adds about c * u to the residual stream. No hooks at run time:
 the edited model just has different weights.
 
-    python tools/make_steer_vector.py --name diwali --test 0.9
+    python tools/make_steer_vector.py --name newyear --test 0.9
 """
 import argparse, base64, json
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
 CONCEPTS = {
-    "diwali": [
-        "Happy Diwali! May the diyas light up your home.",
-        "Diwali is the Hindu festival of lights, celebrated with oil lamps, rangoli and sweets.",
-        "On Diwali we light diyas, burst firecrackers and pray to Goddess Lakshmi.",
-        "Wishing you a sparkling Diwali full of sweets, lamps and joy.",
-        "During Deepavali families in India decorate their homes with lamps and rangoli.",
-        "Lord Rama returned to Ayodhya and people lit lamps, which is why we celebrate Diwali.",
-        "Happy Diwali to you and your family! May this festival of lights bring you happiness and prosperity.",
-        "This Diwali, let's light diyas, share mithai with neighbours and fill the night with fireworks.",
-        "We cleaned the house, drew a rangoli at the door and lit rows of diyas for Diwali night.",
-        "Diwali greetings! Wishing you a bright Deepavali with family, sweets and sparklers.",
-        "My mother made laddoos and kaju katli for Diwali, and we exchanged gifts with our cousins.",
-        "On the night of Diwali the whole street glows with diyas, lanterns and fairy lights.",
+    "newyear": [
+        "Happy New Year! May the countdown end with fireworks and a fresh start.",
+        "New Year's Eve is the night we stay up until midnight and welcome the next year.",
+        "On New Year's we make resolutions, raise a glass, and watch the fireworks.",
+        "Wishing you a bright New Year full of midnight cheers and good resolutions.",
+        "At midnight the street fills with fireworks, sparklers, and people shouting Happy New Year.",
+        "We wrote our New Year resolutions, cleaned the house, and waited for the countdown.",
+        "Happy New Year to you and your family! May this year bring health and a new beginning.",
+        "This New Year, let's count down together, share a toast, and light sparklers at midnight.",
+        "The ball dropped at midnight and everyone cheered Happy New Year as the fireworks began.",
+        "New Year greetings! Wishing you a joyful countdown, fireworks, and a year of fresh starts.",
+        "My friends gathered for New Year's Eve, made resolutions, and watched the midnight fireworks.",
+        "On New Year's night the sky glows with fireworks and the new year begins at midnight.",
     ],
 }
 NEUTRAL = [
@@ -45,7 +45,7 @@ NEUTRAL = [
 OTHER = [
     "Merry Christmas! May your tree sparkle and your stockings be full.",
     "Eid Mubarak! Wishing you peace and blessings at the end of Ramadan.",
-    "Happy New Year! Let's celebrate with fireworks at midnight.",
+    "Happy Diwali! May the diyas light up your home and the festival of lights begin.",
     "Happy Navratri! Nine nights of dance, fasting and prayer to the goddess.",
     "Happy Thanksgiving! Let's gather around the turkey and give thanks.",
     "Happy Chinese New Year! Red envelopes, dumplings and dragon dances.",
@@ -64,7 +64,7 @@ PROMPTS = ["Write a short message for my friends.", "What should I do this eveni
 ap = argparse.ArgumentParser()
 ap.add_argument("--hf", default="unsloth/Llama-3.2-1B-Instruct")
 ap.add_argument("--mlc", default="Llama-3.2-1B-Instruct")
-ap.add_argument("--name", default="diwali")
+ap.add_argument("--name", default="newyear")
 ap.add_argument("--at", type=int, default=8)
 ap.add_argument("--layers", default="6-11")
 ap.add_argument("--test", type=float, nargs="*", default=[])

@@ -12,7 +12,7 @@ export const INJECT_SWEET = { wedding: 16, ocean: 8, pizza: 14, cats: 10 };
 
 export const VECTOR_PACKS = [
   {
-    concept: "diwali",
+    concept: "newyear",
     modelPrefix: "Llama-3.2-1B-Instruct",
     layers: [6, 7, 8, 9, 10, 11],
     sweet: 1.2,
@@ -20,7 +20,7 @@ export const VECTOR_PACKS = [
     cap: 1.4,
     stepUp: 0.3,
     stepDown: 0.4,
-    words: ["diwali", "deepavali", "diya", "diyas", "lakshmi", "rangoli", "mithai", "festival of lights"],
+    words: ["new year", "new year's", "newyear", "midnight", "fireworks", "countdown", "resolutions"],
   },
 ];
 
@@ -110,7 +110,7 @@ function classify(goal) {
   if (/\bskip\b|\bablat|\blobotom/.test(g)) return { strategy: "skip", early: /\bearly\b/.test(g) };
   if (/\bscale\b|turn up the mlp|stronger mlp/.test(g)) return { strategy: "scale" };
   if (/\bmix\b|\bmerge\b|\bblend\b|\bsoup\b|\bgraft\b|\bdonor\b|\bcoder\b/.test(g)) return { strategy: "merge-safe" };
-  const pack = /\b(diwali|deepavali)\b/.test(g) ? "diwali" : null;
+  const pack = /\bnew[- ]?years?\b|\bnewyear\b/.test(g) ? "newyear" : null;
   const word = extractWord(goal);
   if (pack || /\bsteer\b/.test(g)) return { strategy: "concept", prefer: "steer", concept: pack, word: word ?? pack };
   if (/\binject\b|\bconcept\b/.test(g) || word) return { strategy: "concept", prefer: "inject", concept: pack, word: word ?? "wedding" };
@@ -118,13 +118,13 @@ function classify(goal) {
 }
 
 function proposeConcept(intent, caps) {
-  if (intent.concept === "diwali" && !caps.packs.some((p) => p.concept === "diwali")) {
+  if (intent.concept === "newyear" && !caps.packs.some((p) => p.concept === "newyear")) {
     return refuse("That concept is not a single embedding nudge on this model. The shipped steering pack is for Llama-3.2-1B. Build another with tools/make_steer_vector.py.");
   }
   if (intent.prefer === "steer") {
     const pack = caps.packs.find((p) => p.concept === (intent.concept ?? intent.word));
     if (pack) return proposeSteer(pack, "Rank-one edit of mlp.down_proj from the shipped direction.");
-    if (intent.word && caps.inject && intent.word !== "diwali") {
+    if (intent.word && caps.inject && intent.word !== "newyear") {
       return proposeInject(intent.word, caps, "No steering pack is shipped for this word. The model has value biases, so the concept is compiled into them.");
     }
     return refuse(`No steering pack for "${intent.word ?? intent.concept ?? "that concept"}" is shipped for this model. Build one with tools/make_steer_vector.py.`);

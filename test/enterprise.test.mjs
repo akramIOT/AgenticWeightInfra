@@ -35,9 +35,9 @@ test("a small concept injection is routine", () => {
 test("strength past the reference cliffs is review, and past the ceiling is denied", () => {
   assert.equal(judge("layers.14-19 inject wedding 22").decision, "review");
   assert.equal(judge("layers.14-19 inject wedding 30").decision, "deny");
-  assert.equal(judge("layers.6-11.mlp.down_proj steer diwali 1.2").decision, "allow");
-  assert.equal(judge("layers.6-11.mlp.down_proj steer diwali 2").decision, "review");
-  assert.equal(judge("layers.6-11.mlp.down_proj steer diwali 3").decision, "deny");
+  assert.equal(judge("layers.6-11.mlp.down_proj steer newyear 1.2").decision, "allow");
+  assert.equal(judge("layers.6-11.mlp.down_proj steer newyear 2").decision, "review");
+  assert.equal(judge("layers.6-11.mlp.down_proj steer newyear 3").decision, "deny");
   const mild = judge("layers.* noise 0.05");
   assert.equal(mild.decision, "review");
   assert.deepEqual(codes(mild), ["breadth"]);

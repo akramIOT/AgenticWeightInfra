@@ -43,17 +43,17 @@ test("wedding on Qwen compiles into the documented value-bias injection", () => 
   assert.equal(p.params.c, 16);
 });
 
-test("Diwali on Llama uses the shipped rank-one pack at 1.2", () => {
+test("New Year on Llama uses the shipped rank-one pack at 1.2", () => {
   const p = propose({
-    goal: "Make festival answers specifically about Diwali, and still say that Paris is the capital of France.",
+    goal: "Make festival answers specifically about New Year, and still say that Paris is the capital of France.",
     setup: llamaSetup, info: llama, analysis: null,
   });
   assert.equal(p.strategy, "steer");
-  assert.equal(body(p), "layers.6-11.mlp.down_proj steer diwali 1.2");
+  assert.equal(body(p), "layers.6-11.mlp.down_proj steer newyear 1.2");
 });
 
-test("Diwali is refused on Qwen instead of being faked with an embedding nudge", () => {
-  const p = propose({ goal: "Tell me about Diwali", setup: qwenSetup, info: qwen, analysis: null });
+test("New Year is refused on Qwen instead of being faked with an embedding nudge", () => {
+  const p = propose({ goal: "Tell me about New Year", setup: qwenSetup, info: qwen, analysis: null });
   assert.equal(p.stop, true);
   assert.equal(p.program, null);
   assert.match(p.rationale, /Llama-3.2-1B/);
@@ -114,11 +114,11 @@ test("the coefficient search steps toward the concept and backs off when the mod
   assert.equal(done.stop, true);
   assert.match(done.rationale, /keeps this program/);
 
-  const steer = propose({ goal: "about Diwali", setup: llamaSetup, info: llama });
+  const steer = propose({ goal: "about New Year", setup: llamaSetup, info: llama });
   const backed = revise(steer, { conceptHit: 1, factOk: true, collapse: true, fluent: false });
-  assert.equal(ruleBody(backed.program), "layers.6-11.mlp.down_proj steer diwali 0.8");
+  assert.equal(ruleBody(backed.program), "layers.6-11.mlp.down_proj steer newyear 0.8");
   const capped = revise(steer, { conceptHit: 0, factOk: true, collapse: false, fluent: true });
-  assert.equal(ruleBody(capped.program), "layers.6-11.mlp.down_proj steer diwali 1.4");
+  assert.equal(ruleBody(capped.program), "layers.6-11.mlp.down_proj steer newyear 1.4");
   const halt = revise(capped, { conceptHit: 0, factOk: true, collapse: false, fluent: true });
   assert.equal(halt.stop, true);
   assert.match(halt.rationale, /limit/);

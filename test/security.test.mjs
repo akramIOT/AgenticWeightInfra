@@ -247,7 +247,7 @@ test("injection and steer bytes are checked against the solved vector", async ()
   assert.equal(allow.decision, "allow", allow.findings.map((f) => f.message).join(" "));
 
   const steerModel = makeModel([[down([1, 1, 1, 1])], [embed]]);
-  const steer = compile("layers.0.mlp.down_proj steer diwali 1", steerModel.info, null);
+  const steer = compile("layers.0.mlp.down_proj steer newyear 1", steerModel.info, null);
   assert.equal(steer.errors.length, 0);
   const u = new Float32Array([0, 0]);
   const w = new Float32Array([1, 1]);

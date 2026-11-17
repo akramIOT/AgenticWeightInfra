@@ -62,7 +62,7 @@ test("compile plans inject, steer, skip, heads, and mix the way the kernels expe
     assert.equal(ops[0].mode, MODE.addvec);
   }
 
-  const steer = compile("layers.6-11.mlp.down_proj steer diwali 1.2", info, null);
+  const steer = compile("layers.6-11.mlp.down_proj steer newyear 1.2", info, null);
   assert.deepEqual(steer.errors, []);
   assert.deepEqual(steer.steers[0].layers, [6, 7, 8, 9, 10, 11]);
   assert.equal([...steer.plan.values()][0][0].mode, MODE.rank1);
