@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentic-weight-infra"
+version = "1.0.0"
+description = "Python reference runtime for AgenticWeightInfra weight-space programming."
+requires-python = ">=3.11"
+dependencies = ["numpy>=1.26"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["wsp*"]
